@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Примерка материала</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0ece6;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .widget {
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.13);
+    max-width: 700px; width: 100%;
+    overflow: hidden;
+  }
+  .w-header {
+    background: linear-gradient(135deg, #1e1a17 0%, #3d2b1f 100%);
+    color: #fff; padding: 26px 30px 22px;
+  }
+  .w-header h1 { font-size: 21px; font-weight: 700; margin-bottom: 5px; }
+  .w-header p  { font-size: 13px; opacity: 0.65; }
+  .steps { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .step { display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.4; transition: opacity .3s; }
+  .step.active { opacity: 1; }
+  .step.done   { opacity: 0.6; }
+  .step-num {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .step.active .step-num { background: #d4a45a; color: #1e1a17; }
+  .step.done   .step-num { background: #4a8c5c; }
+  .step-sep { opacity: 0.3; font-size: 10px; }
+
+  .w-body { padding: 26px 30px; }
+
+  /* Upload */
+  .upload-zone {
+    border: 2px dashed #ccc5bb; border-radius: 14px;
+    padding: 36px 20px; text-align: center; cursor: pointer;
+    transition: all .25s; background: #faf8f5;
+    position: relative; margin-bottom: 24px;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: #3d2b1f; background: #f2ede5; }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-zone .icon { font-size: 38px; margin-bottom: 10px; }
+  .upload-zone h3 { font-size: 15px; color: #1e1a17; margin-bottom: 5px; }
+  .upload-zone p { font-size: 13px; color: #999; }
+  .u-btn {
+    display: inline-block; margin-top: 12px;
+    padding: 9px 20px; background: #3d2b1f; color: white;
+    border-radius: 8px; font-size: 13px; font-weight: 600; pointer-events: none;
+  }
+
+  /* Fabric grid */
+  .sec-title { font-size: 14px; font-weight: 700; color: #1e1a17; margin-bottom: 12px; }
+  .fabric-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr);
+    gap: 9px; margin-bottom: 20px;
+  }
+  .fab-item {
+    cursor: pointer; border-radius: 10px; overflow: hidden;
+    border: 3px solid transparent; transition: all .2s;
+    position: relative;
+  }
+  .fab-item:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
+  .fab-item.sel   { border-color: #3d2b1f; }
+  .fab-thumb {
+    display: block; width: 100%; aspect-ratio: 1;
+    object-fit: cover; background: #eee;
+  }
+  .fab-thumb-placeholder {
+    width: 100%; aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .fab-name {
+    font-size: 10px; text-align: center; padding: 5px 3px;
+    color: #666; background: #fff; font-weight: 500; line-height: 1.2;
+  }
+  .fab-item.sel .fab-name { background: #3d2b1f; color: #fff; }
+
+  /* Loading indicator for swatches */
+  .fab-loading {
+    width: 100%; aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    background: #f0ece6; font-size: 18px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+  /* Controls */
+  .ctrl-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .ctrl-row label { font-size: 13px; color: #666; min-width: 130px; }
+  input[type=range] { flex: 1; accent-color: #3d2b1f; cursor: pointer; }
+  .ctrl-val { font-size: 13px; font-weight: 700; color: #3d2b1f; min-width: 36px; text-align: right; }
+
+  /* Preview */
+  .preview-wrap {
+    position: relative; border-radius: 14px; overflow: hidden;
+    background: #ede8e1; min-height: 180px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+  }
+  #threeCanvas { display: block; max-width: 100%; border-radius: 14px; }
+  .placeholder-msg { text-align: center; color: #bbb; font-size: 13px; padding: 50px 20px; }
+  .spinner-ov {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.82);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center; border-radius: 14px;
+  }
+  .spin {
+    width: 38px; height: 38px;
+    border: 4px solid #e0d8d0; border-top-color: #3d2b1f;
+    border-radius: 50%; animation: spin .75s linear infinite; margin-bottom: 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-ov p { font-size: 13px; color: #666; }
+  .hint { font-size: 12px; color: #aaa; text-align: center; margin-bottom: 22px; }
+
+  #sec2, #sec3 { display: none; }
+
+  /* Lead form */
+  .lead-box {
+    display: none; margin-top: 4px; padding: 22px;
+    background: linear-gradient(135deg, #fef8ee, #f7ede0);
+    border-radius: 14px; border: 1px solid #e8d5b8;
+  }
+  .lead-box h3 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .lead-box p  { font-size: 13px; color: #888; margin-bottom: 16px; }
+  .f-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 9px; }
+  .f-inp {
+    width: 100%; padding: 11px 13px;
+    border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: 14px; outline: none; font-family: inherit; transition: border-color .2s;
+  }
+  .f-inp:focus { border-color: #3d2b1f; }
+  .sub-btn {
+    width: 100%; padding: 13px;
+    background: #e05a22; color: white; border: none;
+    border-radius: 9px; font-size: 15px; font-weight: 700;
+    cursor: pointer; margin-top: 6px; transition: background .2s;
+  }
+  .sub-btn:hover { background: #c94d18; }
+  .ok-msg { display: none; text-align: center; padding: 22px; }
+  .ok-msg .ok-icon { font-size: 36px; margin-bottom: 8px; }
+  .ok-msg p { font-size: 15px; font-weight: 600; color: #2d7a3e; }
+
+  @media (max-width: 480px) {
+    .w-body, .w-header { padding: 18px 16px; }
+    .fabric-grid { grid-template-columns: repeat(3, 1fr); }
+    .f-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="widget">
+  <div class="w-header">
+    <h1>🛋 Примерка материала</h1>
+    <p>Загрузите фото мебели и выберите ткань из каталога</p>
+    <div class="steps">
+      <div class="step active" id="si1"><div class="step-num">1</div><span>Фото</span></div>
+      <div class="step-sep">›</div>
+      <div class="step" id="si2"><div class="step-num">2</div><span>Материал</span></div>
+      <div class="step-sep">›</div>
+      <div class="step" id="si3"><div class="step-num">3</div><span>Результат</span></div>
+    </div>
+  </div>
+
+  <div class="w-body">
+
+    <div id="sec1">
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="icon">📷</div>
+        <h3>Загрузите фото вашей мебели</h3>
+        <p>Диван, кресло, стул, пуф — любая мягкая мебель</p>
+        <div class="u-btn">Выбрать фото</div>
+      </div>
+    </div>
+
+    <div id="sec2">
+      <div class="sec-title">Выберите материал из каталога</div>
+      <div class="fabric-grid" id="fabGrid"></div>
+
+      <div class="ctrl-row">
+        <label>Интенсивность</label>
+        <input type="range" id="intensSlider" min="10" max="95" value="65">
+        <span class="ctrl-val" id="intensVal">65%</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Масштаб текстуры</label>
+        <input type="range" id="scaleSlider" min="2" max="30" value="10">
+        <span class="ctrl-val" id="scaleVal">10×</span>
+      </div>
+    </div>
+
+    <div id="sec3">
+      <div class="sec-title">Результат</div>
+      <div class="preview-wrap" id="previewWrap">
+        <div class="placeholder-msg" id="placeholder">Загрузите фото и выберите материал</div>
+        <div class="spinner-ov" id="spinOv">
+          <div class="spin"></div>
+          <p id="spinMsg">Загружаем текстуру…</p>
+        </div>
+      </div>
+      <p class="hint">✨ Three.js WebGL — реальная текстура ткани накладывается на фото мебели</p>
+    </div>
+
+    <div class="lead-box" id="leadBox">
+      <h3>Нравится результат? 🎉</h3>
+      <p>Оставьте контакты — рассчитаем точную стоимость и свяжемся с вами</p>
+      <div class="f-row">
+        <input type="text" class="f-inp" id="ldName"  placeholder="Ваше имя">
+        <input type="tel"  class="f-inp" id="ldPhone" placeholder="Телефон">
+      </div>
+      <input type="text" class="f-inp" style="margin-bottom:9px" id="ldNote" placeholder="Тип мебели (необязательно)">
+      <button class="sub-btn" onclick="submitLead()">Узнать точную стоимость →</button>
+    </div>
+
+    <div class="ok-msg" id="okMsg">
+      <div class="ok-icon">✅</div>
+      <p>Заявка принята! Свяжемся в течение часа.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================
+     VERTEX SHADER
+     ============================================================ -->
+<script id="vs" type="x-shader/x-vertex">
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+</script>
+
+<!-- ============================================================
+     FRAGMENT SHADER — реальная текстура ткани
+     Идея: берём реальное фото ткани (тайлинг) + оригинал мебели.
+     Из оригинала извлекаем luminance и детали (края, складки).
+     Накладываем цвет ткани, модулированный luminance — мебель
+     "перекрашивается" в выбранный материал с сохранением объёма.
+     ============================================================ -->
+<script id="fs-main" type="x-shader/x-fragment">
+uniform sampler2D uPhoto;    // оригинал фото мебели
+uniform sampler2D uFabric;   // фото ткани из каталога
+uniform float     uIntensity;// сила наложения 0..1
+uniform float     uScale;    // тайлинг текстуры ткани
+uniform int       uType;     // 0=гладкая, 1=букле
+
+varying vec2 vUv;
+
+// Мягкий шум для органичности
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(
+    mix(hash(i), hash(i+vec2(1,0)), f.x),
+    mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y
+  );
+}
+
+void main() {
+  // --- Оригинальный пиксель ---
+  vec4 photo   = texture2D(uPhoto, vUv);
+  float lum    = dot(photo.rgb, vec3(0.299, 0.587, 0.114)); // яркость
+  float lumSq  = sqrt(lum); // осветлённая версия для светлых зон
+
+  // --- Текстура ткани (тайлинг) ---
+  vec2  fabUV   = vUv * uScale;
+  vec4  fabTex  = texture2D(uFabric, fract(fabUV));
+
+  // Яркость самой ткани — нормализуем вокруг серого
+  float fabLum  = dot(fabTex.rgb, vec3(0.299, 0.587, 0.114));
+  float fabNorm = fabLum - 0.5; // отклонение от среднего
+
+  // --- Рассчитываем целевой цвет мебели в новом материале ---
+  // +Основаΰ: цвет ткани, модулированный яркостью оригинала
+  vec3 recolored = fabTex.rgb * (lum * 1.6 + 0.05);
+
+  // Добавляем детали текстуры ткани поверх (рельеф)
+  float detail = fabNorm * 0.35;
+  recolored = clamp(recolored + vec3(detail), 0.0, 1.0);
+
+  // Для букле — дополнительный объём через микрошум
+  if (uType == 1) {
+    float micro = noise(fabUV * 4.0) * 0.08 - 0.04;
+    recolored = clamp(recolored + vec3(micro), 0.0, 1.0);
+  }
+
+  // --- Blend: Soft-light для сохранения деталей оригинала ---
+  vec3 soft;
+  for (int i = 0; i < 3; i++) {
+    float c = recolored[i];
+    float p = photo.rgb[i];
+    soft[i] = c < 0.5
+      ? p - (1.0 - 2.0*c)*p*(1.0-p)
+      : p + (2.0*c - 1.0)*(sqrt(p) - p);
+  }
+
+  // Финальный микс: оригинал ↔ перекрашенный
+  vec3 result = mix(photo.rgb, soft, uIntensity);
+  gl_FragColor = vec4(result, 1.0);
+}
+</script>
+
+<script>
+// ============================================================
+// КОНФИГУРАЦИЯ — замени на свои URL после публикации на GitHub Pages
+// Формат: { id, name, type ('smooth'|'boucle'), color, url }
+// ============================================================
+const FABRICS_URL = 'fabrics.json'; // путь к JSON-каталогу
+
+// Встроенный каталог (используется если FABRICS_URL недоступен)
+const FABRICS_FALLBACK = [
+  { id:'gold-smooth',   name:'Золотистая',       type:'smooth', color:'#c9a84c', url:'fabrics/gold-smooth.jpg'   },
+  { id:'brown-boucle',  name:'Коричн. букле',    type:'boucle', color:'#a0622a', url:'fabrics/brown-boucle.jpg'  },
+  { id:'white-smooth',  name:'Белая',             type:'smooth', color:'#e8e4de', url:'fabrics/white-smooth.jpg'  },
+  { id:'green-boucle',  name:'Зелёный букле',     type:'boucle', color:'#4a6647', url:'fabrics/green-boucle.jpg'  },
+  { id:'gray-boucle',   name:'Серый букле',       type:'boucle', color:'#7a7e82', url:'fabrics/gray-boucle.jpg'   },
+  { id:'sage-smooth',   name:'Серо-зелёная',      type:'smooth', color:'#8a9688', url:'fabrics/sage-smooth.jpg'   },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let renderer, scene, camera, mesh;
+let photoTexture  = null;
+let fabricTexture = null;
+let currentFabric = null;
+let currentIntens = 0.65;
+let currentScale  = 10.0;
+let fabrics       = [];
+
+const VS = document.getElementById('vs').textContent;
+const FS = document.getElementById('fs-main').textContent;
+
+// ============================================================
+// INIT — загружаем каталог тканей
+// ============================================================
+async function loadCatalog() {
+  try {
+    const r = await fetch(FABRICS_URL);
+    if (!r.ok) throw new Error('no json');
+    fabrics = await r.json();
+  } catch {
+    fabrics = FABRICS_FALLBACK;
+  }
+  buildSwatches();
+}
+
+// ============================================================
+// SWATCHES
+// ============================================================
+function buildSwatches() {
+  const grid = document.getElementById('fabGrid');
+  grid.innerHTML = '';
+
+  fabrics.forEach((fab, i) => {
+    const item = document.createElement('div');
+    item.className = 'fab-item';
+    item.id = `fab_${i}`;
+
+    // Пробуем загрузить реальное фото как превью свотча
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const thumb = item.querySelector('.fab-thumb-placeholder');
+      if (thumb) {
+        thumb.outerHTML = `<img class="fab-thumb" src="${fab.url}" alt="${fab.name}">`;
+      }
+    };
+    img.onerror = () => {
+      // Если фото не загрузилось — показываем цветной квадрат с эмодзи
+      const thumb = item.querySelector('.fab-thumb-placeholder');
+      if (thumb) {
+        thumb.style.background = fab.color;
+        thumb.innerHTML = fab.type === 'boucle' ? '🧶' : '🪡';
+        thumb.style.animation = 'none';
+      }
+    };
+    img.src = fab.url;
+
+    item.innerHTML = `
+      <div class="fab-thumb-placeholder fab-loading" style="background:${fab.color}40">⏳</div>
+      <div class="fab-name">${fab.name}</div>
+    `;
+    item.onclick = () => selectFabric(i);
+    grid.appendChild(item);
+    img.src = fab.url; // trigger load
+  });
+}
+
+// ============================================================
+// THREE.JS
+// ============================================================
+function initThree(w, h) {
+  const wrap = document.getElementById('previewWrap');
+  const old  = document.getElementById('threeCanvas');
+  if (old) old.remove();
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(w, h);
+  renderer.domElement.id = 'threeCanvas';
+  renderer.domElement.style.maxWidth = '100%';
+  renderer.domElement.style.borderRadius = '14px';
+  wrap.appendChild(renderer.domElement);
+
+  scene  = new THREE.Scene();
+  camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geo = new THREE.PlaneGeometry(2, 2);
+  mesh = new THREE.Mesh(geo, makeMaterial());
+  scene.add(mesh);
+}
+
+function makeMaterial() {
+  if (!photoTexture) return new THREE.MeshBasicMaterial({ color: 0xede8e1 });
+
+  const uniforms = {
+    uPhoto:     { value: photoTexture },
+    uFabric:    { value: fabricTexture || photoTexture },
+    uIntensity: { value: currentIntens },
+    uScale:     { value: currentScale  },
+    uType:      { value: currentFabric?.type === 'boucle' ? 1 : 0 },
+  };
+  return new THREE.ShaderMaterial({ uniforms, vertexShader: VS, fragmentShader: FS });
+}
+
+function renderFrame() {
+  if (!renderer || !mesh) return;
+  mesh.material = makeMaterial();
+  renderer.render(scene, camera);
+}
+
+// ============================================================
+// INTERACTIONS
+// ============================================================
+async function selectFabric(i) {
+  document.querySelectorAll('.fab-item').forEach(e => e.classList.remove('sel'));
+  document.getElementById(`fab_${i}`).classList.add('sel');
+  currentFabric = fabrics[i];
+
+  if (!photoTexture) return;
+
+  showSpinner('Загружаем текстуру ткани…');
+
+  // Загружаем текстуру ткани
+  await loadFabricTexture(currentFabric.url);
+  renderFrame();
+  hideSpinner();
+  setStep(3);
+
+  document.getElementById('leadBox').style.display = 'block';
+  setTimeout(() => {
+    document.getElementById('leadBox').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+
+function loadFabricTexture(url) {
+  return new Promise(resolve => {
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    loader.load(
+      url,
+      tex => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        fabricTexture = tex;
+        resolve();
+      },
+      undefined,
+      () => {
+        // Ошибка загрузки — используем процедурный fallback
+        fabricTexture = makeProceduralTexture(currentFabric);
+        resolve();
+      }
+    );
+  });
+}
+
+// Процедурная текстура-заглушка если фото не загрузилось
+function makeProceduralTexture(fab) {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = fab.color;
+  ctx.fillRect(0, 0, size, size);
+
+  if (fab.type === 'boucle') {
+    for (let y = 0; y < size; y += 6) {
+      for (let x = 0; x < size; x += 6) {
+        const r = 2 + Math.random() * 1.5;
+        const brightness = 0.7 + Math.random() * 0.4;
+        ctx.fillStyle = `rgba(255,255,255,${brightness * 0.15})`;
+        ctx.beginPath(); ctx.arc(x+3, y+3, r, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  } else {
+    for (let y = 0; y < size; y += 3) {
+      ctx.strokeStyle = `rgba(255,255,255,${y%6===0?0.12:0.04})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(size,y); ctx.stroke();
+    }
+  }
+
+  const tex = new THREE.Texture(canvas);
+  tex.needsUpdate = true;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById(`si${i}`);
+    el.className = 'step' + (i<n?' done':i===n?' active':'');
+  }
+}
+
+function showSpinner(msg) {
+  document.getElementById('spinMsg').textContent = msg || 'Рендеринг…';
+  document.getElementById('spinOv').style.display = 'flex';
+  document.getElementById('placeholder').style.display = 'none';
+}
+
+function hideSpinner() {
+  document.getElementById('spinOv').style.display = 'none';
+}
+
+// File upload
+const fileInput  = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      photoTexture = new THREE.Texture(img);
+      photoTexture.needsUpdate = true;
+
+      const maxW = document.getElementById('previewWrap').offsetWidth || 640;
+      const scale = Math.min(1, maxW / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+
+      initThree(w, h);
+      document.getElementById('sec2').style.display = 'block';
+      document.getElementById('sec3').style.display = 'block';
+      document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('uploadZone').style.opacity = '0.55';
+      renderFrame();
+      setStep(2);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Sliders
+document.getElementById('intensSlider').addEventListener('input', function() {
+  currentIntens = this.value / 100;
+  document.getElementById('intensVal').textContent = this.value + '%';
+  renderFrame();
+});
+document.getElementById('scaleSlider').addEventListener('input', function() {
+  currentScale = parseFloat(this.value);
+  document.getElementById('scaleVal').textContent = this.value + '×';
+  if (fabricTexture) renderFrame();
+});
+
+// Lead form
+function submitLead() {
+  const name  = document.getElementById('ldName').value.trim();
+  const phone = document.getElementById('ldPhone').value.trim();
+  if (!name || !phone) { alert('Укажите имя и телефон'); return; }
+
+  // === ВСТАВЬ СВОЙ WEBHOOK ===
+  // fetch('https://ВАШ_WEBHOOK', {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify({
+  //     name, phone,
+  //     comment: document.getElementById('ldNote').value,
+  //     fabric:  currentFabric?.name,
+  //     source:  'furniture-widget'
+  //   })
+  // });
+
+  document.getElementById('leadBox').style.display = 'none';
+  document.getElementById('okMsg').style.display   = 'block';
+  console.log('Lead:', { name, phone, fabric: currentFabric?.name });
+}
+
+// ============================================================
+// START
+// ============================================================
+loadCatalog();
+</script>
+
+</body>
+</html>
