@@ -1,0 +1,44 @@
+[
+  {
+    "id": "gold-smooth",
+    "name": "Золотистая",
+    "type": "velvet",
+    "color": "#c9a84c",
+    "url": "fabrics/gold-smooth.jpg"
+  },
+  {
+    "id": "brown-boucle",
+    "name": "Коричневый букле",
+    "type": "boucle",
+    "color": "#a0622a",
+    "url": "fabrics/brown-boucle.jpg"
+  },
+  {
+    "id": "white-smooth",
+    "name": "Белая",
+    "type": "velvet",
+    "color": "#e8e4de",
+    "url": "fabrics/white-smooth.jpg"
+  },
+  {
+    "id": "green-boucle",
+    "name": "Зелёный букле",
+    "type": "boucle",
+    "color": "#4a6647",
+    "url": "fabrics/green-boucle.jpg"
+  },
+  {
+    "id": "gray-boucle",
+    "name": "Серый букле",
+    "type": "boucle",
+    "color": "#7a7e82",
+    "url": "fabrics/gray-boucle.jpg"
+  },
+  {
+    "id": "sage-smooth",
+    "name": "Серо-зелёная",
+    "type": "velvet",
+    "color": "#8a9688",
+    "url": "fabrics/sage-smooth.jpg"
+  }
+]
